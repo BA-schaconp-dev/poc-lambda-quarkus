@@ -1,0 +1,13 @@
+# Se excluye todo y se habilita SOLO lo que el Dockerfile de la raiz copia.
+#
+# El build es multi-stage y compila desde fuente DENTRO de la imagen builder,
+# asi que el contexto no necesita nada de target/: incluirlo solo engorda el
+# contexto y arriesga que un artefacto local viejo entre al build.
+*
+
+!pom.xml
+!mvnw
+!.mvn
+!.mvn/**
+!src
+!src/**

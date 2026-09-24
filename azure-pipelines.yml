@@ -1,0 +1,47 @@
+﻿trigger:
+  branches:
+    include:
+      - main
+
+resources:
+  repositories:
+    - repository: common-templates
+      type: git
+      name: IT-INN-J2C/common-devops-pipeline-app-general
+      ref: refs/heads/poc-lambda
+
+pool:
+  name: AWS Pipelines DEVS v2
+
+extends:
+  template: .pipelines/templates/aws-lambda/orchestrator/aws-lambda-orchestrator.yml@common-templates
+  parameters:
+    serviceName: "POC Quarkus Lambda REST"
+    projectPath: "."
+    appName: "poc-quarkus-hello"
+    language: java
+    languageVersion: "21"
+    deployTarget: ecr
+    ecrRepo: "poc-quarkus-hello"
+    ecrVariableGroup: "hnd-bco-consban-registry-dev-ecr-vars"
+    pushVariableGroup: "hnd-bco-dev-consban-backend-vars"
+
+    native: true
+
+    runTests: true
+    hasCertificates: false
+
+    enableQualityGate: true
+    enableTrivyScan: true
+    failOnTrivy: true
+
+    enableQaDeploy: false
+    enableProdDeploy: false
+
+    environments:
+      dev:
+        functionName: "poc-quarkus-hello-img"
+        architecture: x86_64
+        artifactBucket: ""
+        publishVersion: true
+        aliasName: "live"

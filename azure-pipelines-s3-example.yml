@@ -1,0 +1,70 @@
+﻿# Ejemplo de referencia: el mismo pipeline con deployTarget: s3
+#
+# No se ejecuta. Para usarlo, reemplaza azure-pipelines.yml con este contenido.
+#
+# Diferencias frente al camino ecr:
+#   - la funcion debe ser PackageType: Zip (no Image), y AWS no permite
+#     convertir entre los dos
+#   - PodmanBuildAndPush queda Skipped, asi que NO corre Trivy
+#   - no se usa ecrRepo ni los variable groups del registry
+#   - hace falta environments.<env>.artifactBucket, que debe existir ya
+#   - con native: true el runtime de la funcion debe ser provided.al2023;
+#     con native: false, java21. El pipeline lo valida y falla si no cuadra
+#
+# El flujo sigue siendo el mismo y lineal:
+#   Build -> QualityGate -> PodmanBuildAndPush (Skipped) -> Deploy_Lambda_dev
+
+trigger:
+  branches:
+    include:
+      - main
+
+resources:
+  repositories:
+    - repository: common-templates
+      type: git
+      name: IT-INN-J2C/common-devops-pipeline-app-general
+      ref: refs/heads/poc-lambda
+
+pool:
+  name: AWS Pipelines Devs
+
+extends:
+  template: .pipelines/templates/aws-lambda/orchestrator/aws-lambda-orchestrator.yml@common-templates
+  parameters:
+    serviceName: "POC Quarkus Lambda REST"
+    projectPath: "."
+    appName: "poc-quarkus-hello"
+    language: java
+    languageVersion: "21"
+    deployTarget: s3
+
+    # Prefijo de la key dentro del bucket. La key final es
+    #   <artifactPrefix>/<appName>/<VERSION_TAG>/function.zip
+    artifactPrefix: "lambda-artifacts"
+
+    native: false
+
+    runTests: true
+    hasCertificates: false
+
+    enableQualityGate: true
+
+    # Sin efecto con deployTarget: s3, porque no hay imagen que escanear.
+    # Se dejan en true para que al volver a ecr el gate siga activo.
+    enableTrivyScan: true
+    failOnTrivy: true
+
+    enableQaDeploy: false
+    enableProdDeploy: false
+
+    environments:
+      dev:
+        # PackageType: Zip
+        functionName: "poc-quarkus-hello"
+        architecture: x86_64
+        # Debe existir, con acceso publico bloqueado, versionado y cifrado.
+        # El pipeline lo valida con head-bucket y falla si no esta.
+        artifactBucket: "consban-lambda-artifacts-641564158323"
+        publishVersion: true
+        aliasName: "live"

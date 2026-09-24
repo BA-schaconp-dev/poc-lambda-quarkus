@@ -1,0 +1,31 @@
+# Finales de linea: LF siempre, en el repositorio y en el working tree.
+#
+# Por que importa aca: los pipelines corren en agentes Linux, y el bash que va
+# embebido en los .yml se ejecuta tal cual llega. Un archivo con CRLF le mete un
+# \r al final de cada linea, y bash falla con mensajes que no mencionan el
+# retorno de carro por ningun lado: "$'\r': command not found", un shebang que
+# no resuelve, o un heredoc que nunca cierra. Se pierde media manana.
+#
+# Va en .gitattributes y no en core.autocrlf a proposito: esto se commitea, asi
+# que aplica a todo el que clone el repo sin depender de como tenga configurado
+# su git.
+* text=auto eol=lf
+
+# Scripts de Windows: estos SI necesitan CRLF para funcionar.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binarios: que git no los toque nunca.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.jar   binary
+*.class binary
+*.woff  binary
+*.woff2 binary

@@ -1,0 +1,39 @@
+{
+  "_comentario": [
+    "Statement a AGREGAR a la repository policy EXISTENTE del repositorio ECR.",
+    "No reemplaza la policy actual: se suma al arreglo Statement.",
+    "",
+    "Por que hace falta aunque la cuenta ya tenga acceso al repositorio:",
+    "quien descarga la imagen de una Lambda NO es un rol IAM de la cuenta",
+    "consumidora, sino el servicio Lambda (lambda.amazonaws.com). Las",
+    "policies existentes para ECS/EKS otorgan a principals IAM del tipo",
+    "arn:aws:iam::<cuenta>:root o a los task execution roles, y esos NO",
+    "cubren al service principal. Por eso ECS funciona y Lambda no.",
+    "",
+    "Reemplazar ACCOUNT_ID_FUNCION por la cuenta donde vive la funcion",
+    "(dev, qa o prd) y REGION por la region del repositorio y la funcion,",
+    "que deben ser la misma. Un statement por cuenta consumidora, o una",
+    "lista de ARNs en aws:sourceARN."
+  ],
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LambdaECRImageCrossAccountRetrievalPolicy",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": [
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Condition": {
+        "StringLike": {
+          "aws:sourceARN": [
+            "arn:aws:lambda:REGION:ACCOUNT_ID_FUNCION:function:*"
+          ]
+        }
+      }
+    }
+  ]
+}

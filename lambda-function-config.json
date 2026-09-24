@@ -1,0 +1,15 @@
+{
+  "FunctionName": "{{FUNCTION_NAME}}",
+  "MemorySize": 256,
+  "Timeout": 15,
+  "Environment": {
+    "Variables": {
+      "QUARKUS_PROFILE": "{{PROFILES_ACTIVE}}",
+      "ENVIRONMENT": "{{ENVIRONMENT}}",
+      "DISABLE_SIGNAL_HANDLERS": "true"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "Active"
+  }
+}

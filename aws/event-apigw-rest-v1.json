@@ -1,0 +1,41 @@
+{
+  "resource": "/{proxy+}",
+  "path": "/hello",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "*/*",
+    "Host": "pocapiid.execute-api.us-east-1.amazonaws.com",
+    "User-Agent": "poc-test-event"
+  },
+  "multiValueHeaders": {
+    "Accept": ["*/*"]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": {
+    "proxy": "hello"
+  },
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "pocres",
+    "resourcePath": "/{proxy+}",
+    "httpMethod": "GET",
+    "extendedRequestId": "poc-extended-id",
+    "requestTime": "04/Sep/2026:12:00:00 +0000",
+    "path": "/poc/hello",
+    "accountId": "000000000000",
+    "protocol": "HTTP/1.1",
+    "stage": "poc",
+    "domainPrefix": "pocapiid",
+    "requestTimeEpoch": 1788523200000,
+    "requestId": "poc-request-id",
+    "identity": {
+      "sourceIp": "127.0.0.1",
+      "userAgent": "poc-test-event"
+    },
+    "domainName": "pocapiid.execute-api.us-east-1.amazonaws.com",
+    "apiId": "pocapiid"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

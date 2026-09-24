@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>bancatlan.hn</groupId>
+    <artifactId>rest-service</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <properties>
+        <compiler-plugin.version>3.14.0</compiler-plugin.version>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+        <!--
+            3.33 es la LTS vigente (soportada hasta marzo 2027) y 3.33.3
+            sube Netty a 4.1.136.Final, que es la version que cierra TODOS
+            los CVE de netty que reporto Trivy sobre 4.1.127.Final:
+            4.1.132/133/135/136 quedan cubiertos por 4.1.136.
+
+            Se sube el platform en vez de fijar Netty por separado porque
+            Quarkus modifica bytecode de Netty/Vert.x (por eso el scan lista
+            'modified-io.vertx.vertx-core'). Fijar Netty a mano, fuera de la
+            combinacion que el platform probo, rompe el native image.
+        -->
+        <quarkus.platform.version>3.33.3.2</quarkus.platform.version>
+        <skipITs>true</skipITs>
+        <surefire-plugin.version>3.5.4</surefire-plugin.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                netty-bom VA ANTES del quarkus-bom: en dependencyManagement
+                gana la PRIMERA declaracion, asi que este import sobreescribe
+                la version de Netty que trae el platform. Si se pone despues,
+                no tiene efecto.
+
+                Motivo: Quarkus 3.33.3.2 trae Netty 4.1.136.Final y salio
+                CVE-2026-75595 (CRITICAL) en netty-handler contra esa version.
+                Fijado en 4.1.137.Final y 4.2.17.Final.
+
+                Se elige 4.1.137.Final, NO 4.2.17.Final:
+                  - 4.1.137 es un PATCH dentro del mismo minor que ya usa el
+                    platform, y Netty garantiza compatibilidad binaria en la
+                    serie 4.1.x
+                  - 4.2.x es otro minor. Quarkus modifica bytecode de
+                    Netty/Vert.x (por eso el scan lista
+                    'modified-io.vertx.vertx-core'), y saltar de minor fuera
+                    de la combinacion que el platform probo rompe el native
+                    image
+
+                OJO al validar el build nativo: 3.33.3 incluyo un fix de
+                regresion de native image por el cambio de API de SslContext
+                en 4.1.136. Si el nativo falla tras este bump, ese es el
+                primer lugar donde mirar.
+
+                Quitar este bloque cuando el platform llegue a >= 4.1.137.
+            -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.1.137.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Endpoints REST normales (@Path, @GET, etc.) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <!--
+            Puente entre API Gateway y los endpoints REST de Quarkus.
+            quarkus-amazon-lambda-rest  -> API Gateway REST API   (payload format 1.0)
+            quarkus-amazon-lambda-http  -> API Gateway HTTP API   (payload format 2.0), ALB, Function URL
+            Este POC usa REST API, por eso la variante -rest.
+        -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-amazon-lambda-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            Cobertura para SonarQube.
+
+            Se usa la extension quarkus-jacoco y NO el jacoco-maven-plugin
+            estandar: Quarkus transforma el bytecode al arrancar la aplicacion
+            de prueba, y el agente clasico de JaCoCo mide sobre las clases ya
+            transformadas, lo que reporta cobertura incompleta o mal atribuida.
+            La extension se engancha al ciclo de @QuarkusTest y mide sobre las
+            clases originales.
+
+            Ojo: solo cuenta lo que ejecutan los tests anotados con
+            @QuarkusTest. Un test JUnit plano no aporta cobertura aqui.
+
+            El reporte queda en target/jacoco-report/ (jacoco.xml + HTML), que
+            es la ruta por defecto de la extension. El stage de Quality Gate
+            del pipeline busca el XML dentro de target/, asi que no hace falta
+            fijar quarkus.jacoco.report-location.
+        -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jacoco</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <maven.home>${maven.home}</maven.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <native.image.path>${project.build.directory}/${project.build.finalName}-runner</native.image.path>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <maven.home>${maven.home}</maven.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            Perfil `native`: unico interruptor de la compilacion nativa.
+            Se activa con -Pnative o con -Dnative.
+
+            La configuracion de native-image vive AQUI y no en
+            application.properties, porque son decisiones del entorno que
+            compila, no de la aplicacion. Todas se pueden sobreescribir por
+            linea de comandos, por ejemplo en un agente con mas memoria:
+                ./mvnw package -Pnative -Dquarkus.native.native-image-xmx=6g
+
+            Ojo: quarkus.native.container-build NO se fija aqui a proposito.
+            Depende de donde se corra el build:
+              - dentro del Dockerfile ya estamos en la imagen builder -> false
+                (el Dockerfile lo pasa explicito)
+              - en una laptop Windows/macOS hace falta -> true
+        -->
+        <profile>
+            <id>native</id>
+            <activation>
+                <property>
+                    <name>native</name>
+                </property>
+            </activation>
+            <properties>
+                <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
+                <skipITs>false</skipITs>
+                <quarkus.native.enabled>true</quarkus.native.enabled>
+
+                <!--
+                    Limites pensados para agentes self-hosted con pocos
+                    recursos. native-image es glotón: por defecto toma todos
+                    los cores y crece hasta llenar la RAM disponible, y en un
+                    agente compartido eso degrada otros jobs o termina en OOM.
+
+                    Heap del compilador GraalVM.
+
+                    Calibrado con una medicion real en el agente (2 cores,
+                    3.74GB): la fase de analisis, que es la mas pesada, llego a
+                    un pico de 1.37GB. Con -Xmx3g el techo quedaba en 2.67GB
+                    (71% de la RAM del sistema) y el GC se volvia perezoso: no
+                    colectaba porque creia tener espacio, el RSS crecia y el
+                    agente reportaba "Free memory is lower than 5%".
+
+                    2g deja ~45% de margen sobre el pico observado y le
+                    devuelve casi 1GB al sistema. Si vuelve a dar
+                    OutOfMemoryError en la fase de analisis, subir a 2500m
+                    antes que volver a 3g.
+
+                    Se puede sobreescribir sin editar este archivo:
+                        ./mvnw package -Pnative -Dquarkus.native.native-image-xmx=2500m
+                -->
+                <quarkus.native.native-image-xmx>4g</quarkus.native.native-image-xmx>
+
+                <!--
+                    -H:NumberOfThreads=2
+                        Tope de hilos del compilador. Sin esto native-image usa
+                        todos los cores del agente. Con 2 cores, 2 es el balance
+                        correcto: bajarlo a 1 reduce poco la memoria y casi
+                        duplica la fase de analisis.
+
+                    -Ob  (quick build mode)
+                        Optimiza el TIEMPO DE COMPILACION, no el binario.
+                        Recorta ~30-50% del build y baja el pico de memoria,
+                        que es exactamente lo que aprieta en un agente de
+                        2 cores / 4GB.
+
+                        CONTRAPARTIDA: el binario resultante tiene menor
+                        rendimiento en ejecucion sostenida. El arranque en frio
+                        casi no cambia, y para una Lambda que responde en ~2ms
+                        es un intercambio conveniente MIENTRAS se itera.
+
+                        QUITARLO antes de un ambiente real: ahi interesa el
+                        binario optimizado (-O2, el default) y el build lo hace
+                        un agente con recursos, no este.
+                -->
+                <quarkus.native.additional-build-args>-H:NumberOfThreads=2,-Ob</quarkus.native.additional-build-args>
+            </properties>
+        </profile>
+    </profiles>
+</project>

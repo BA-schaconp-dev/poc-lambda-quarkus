@@ -1,0 +1,58 @@
+{
+  "_comentario": [
+    "Policy del rol que asume el pipeline (AWS_ROLE_ARN) para el camino ECR.",
+    "",
+    "Reemplazar ACCOUNT_ID_REGISTRY por la cuenta del ECR y",
+    "ACCOUNT_ID_FUNCION por la cuenta donde vive la funcion. En el POC con el",
+    "ECR de pruebas las dos pueden ser la misma.",
+    "",
+    "La lista es mas corta que antes porque el pipeline ya NO configura la",
+    "funcion: solo cambia codigo, publica version y mueve el alias. Quitados a",
+    "proposito:",
+    "  lambda:UpdateFunctionConfiguration  -> runtime/handler/memoria son de IaC",
+    "  lambda:CreateAlias                  -> el alias lo crea IaC",
+    "  apigateway:GET                      -> ya no hay smoke test en el pipeline",
+    "Si el pipeline pide alguno de esos, es senal de que se le devolvio una",
+    "responsabilidad que no le toca."
+  ],
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TokenDeAutenticacionEcrEsSiempreNivelCuenta",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PublicarLaImagenEnElRepositorioDelServicio",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:DescribeImages",
+        "ecr:DescribeRepositories"
+      ],
+      "Resource": "arn:aws:ecr:us-east-1:ACCOUNT_ID_REGISTRY:repository/poc-quarkus-hello"
+    },
+    {
+      "Sid": "ApuntarLaFuncionALaNuevaImagenYMoverElAlias",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:UpdateFunctionCode",
+        "lambda:PublishVersion",
+        "lambda:GetAlias",
+        "lambda:UpdateAlias"
+      ],
+      "Resource": "arn:aws:lambda:us-east-1:ACCOUNT_ID_FUNCION:function:poc-quarkus-hello-img"
+    }
+  ]
+}
